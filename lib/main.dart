@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ticketing_event/core/constants/colors.dart';
 import 'package:ticketing_event/pages/auth/login_page.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]).then((_) {
+    runApp(const MyApp());
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -36,7 +42,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: screenWidth < 600
+        home: screenWidth < 1
             ? const Scaffold(
                 body: Center(
                   child: Text(
