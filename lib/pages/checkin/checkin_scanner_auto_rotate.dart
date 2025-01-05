@@ -1,9 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class TabletQRScannerPage extends StatefulWidget {
-  const TabletQRScannerPage({Key? key}) : super(key: key);
+  const TabletQRScannerPage({super.key});
 
   @override
   State<TabletQRScannerPage> createState() => _TabletQRScannerPageState();
@@ -51,9 +53,11 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
       await cameraController.switchCamera();
       setState(() {}); // Refresh UI
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error switching camera: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error switching camera: $e')),
+        );
+      }
     }
   }
 
@@ -75,7 +79,7 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                         valueListenable: ValueNotifier<bool>(cameraController.torchEnabled),
                         builder: (context, state, child) {
                           return Icon(
-                            state == TorchState.on ? Icons.flash_on : Icons.flash_off,
+                            state ? Icons.flash_on : Icons.flash_off,
                           );
                         },
                       ),
@@ -99,11 +103,9 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                         );
                       },
                       child: Icon(
-                        state == CameraFacing.front
-                          ? Icons.camera_front
-                          : Icons.camera_rear,
-                        key: ValueKey(state),
-                      ),
+                          state ? Icons.camera_front : Icons.camera_rear,
+                          key: ValueKey(state),
+                        ),
                     );
                   },
                 ),
@@ -158,7 +160,7 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                               lastScanned = barcode.rawValue;
                             });
 
-                            showQRResultDialog(context, barcode);
+                            showQRResultModal(context, barcode);
                           }
                         }
                       }
@@ -192,15 +194,14 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              state == CameraFacing.front
-                                ? Icons.camera_front
+                              state ? Icons.camera_front
                                 : Icons.camera_rear,
                               color: Colors.white,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              state == CameraFacing.front ? 'Front' : 'Back',
+                              state ? 'Front' : 'Back',
                               style: const TextStyle(color: Colors.white),
                             ),
                           ],
@@ -239,7 +240,7 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                         Text(
                           'Tap camera icon to switch cameras',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withAlpha(204),
                             fontSize: 14,
                           ),
                           textAlign: TextAlign.center,
@@ -306,15 +307,37 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
     );
   }
 
+  // Helper method to parse Json content into a Map
+  Map<String, String> _parseQRContent(String content) {
+    try {
+      // Try to decode JSON
+      Map<String, dynamic> jsonMap = json.decode(content);
+      // Convert all values to strings
+      return jsonMap.map((key, value) => MapEntry(key, value.toString()));
+    } catch (e) {
+      debugPrint('Error parsing JSON: $e');
+      // If parsing fails, return the content as a single item
+      return {'Content': content};
+    }
+  }
+
   void showQRResultModal(BuildContext context, Barcode barcode) {
+    String responseJson = "";
+    final contentMap = _parseQRContent(responseJson);
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true, // Makes the bottom sheet expandable
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(16),
+          // Use minimum 50% of screen height, but allow growing
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height * 0.5,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -325,10 +348,51 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                barcode.rawValue ?? '',
-                style: const TextStyle(fontSize: 16),
+              const SizedBox(height: 24),
+              Flexible(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: contentMap.length,
+                  itemBuilder: (context, index) {
+                    String key = contentMap.keys.elementAt(index);
+                    String value = contentMap[key] ?? '';
+
+                    return Card(
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              value,
+                              style: const TextStyle(fontSize: 14),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -358,6 +422,7 @@ class _TabletQRScannerPageState extends State<TabletQRScannerPage> with WidgetsB
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -422,9 +487,9 @@ class ScannerOverlayPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          borderColor.withOpacity(0),
-          borderColor.withOpacity(0.8),
-          borderColor.withOpacity(0),
+          borderColor.withAlpha(0),
+          borderColor.withAlpha(204),
+          borderColor.withAlpha(0),
         ],
       ).createShader(scannerRect);
 
